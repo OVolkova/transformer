@@ -12,11 +12,14 @@ from model.config import TransformerConfig
 class VanilaTransformer(nn.Module):
     """
     Transformer model with:
-    - Embedding layer (vocab size, embedding size) # TODO
-    - Positional encoding # TODO
+    - TODO: Embedding layer (vocab size, embedding size)
+    - TODO: Positional encoding
     - Encoder
     - Decoder
     - Linear layer for the fincal prediction (vocab size)
+
+    TODO: Add init weights
+    TODO: add output dataclass for attention weights
     """
     def __init__(
         self, config: TransformerConfig,
@@ -94,7 +97,7 @@ class FeedForward(nn.Module):
         self.feed_forward.append(nn.Linear(config.d_embed, config.d_ff, bias=config.bias))
         self.feed_forward.append(nn.ReLU())
         self.feed_forward.append(nn.Linear(config.d_ff, config.d_embed, bias=config.bias))
-        self.feed_forward.append(nn.Dropout(config.dropout))
+        self.feed_forward.append(nn.Dropout(config.ff_dropout))
 
     def forward(self, x):
         return self.feed_forward(x)
@@ -176,8 +179,10 @@ class MultiHeadAttention(nn.Module):
         self.values = nn.Linear(config.d_embed, config.d_embed * config.n_heads)
         self.keys = nn.Linear(config.d_embed, config.d_embed * config.n_heads)
         self.queries = nn.Linear(config.d_embed, config.d_embed * config.n_heads)
+        self.attention_dropout = nn.Dropout(config.attention_dropout)
         self.n_heads = config.n_heads
         self.linear = nn.Linear(config.n_heads * config.d_embed, config.d_embed)
+        self.linear_dropout = nn.Dropout(config.linear_dropout)
 
     def forward(self, q, k, v=None, mask=None):
         assert q.shape == k.shape
@@ -204,6 +209,7 @@ class MultiHeadAttention(nn.Module):
         if mask is not None:
             scaled_qk = scaled_qk.masked_fill(mask == 0, float('-inf'))
         attention_weights = torch.softmax(scaled_qk, dim=-1)
+        attention_weights = self.attention_dropout(attention_weights)
 
         # (B, n_heads, T, T) * (B, n_heads, T, hidden_size) = (B, n_heads, T, hidden_size)
         output = torch.matmul(attention_weights, v)
@@ -212,5 +218,6 @@ class MultiHeadAttention(nn.Module):
         # (B, T, n_heads * hidden_size) = (B, T, C)
         output = output.transpose(1, 2).contiguous().view(B, T, C)
         output = self.linear(output)
+        output = self.linear_dropout(output)
 
         return output, attention_weights

@@ -7,8 +7,9 @@ class TransformerConfig:
         n_heads,
         n_layers,
         d_ff,
-        dropout,
-        max_len,
+        ff_dropout=0.1,
+        attention_dropout=0.1,
+        linear_dropout=0.1,
         label_smoothing=0.0,
         layer_norm_eps=1e-12,
         bias=False,
@@ -20,8 +21,9 @@ class TransformerConfig:
         self.n_heads = n_heads
         self.n_layers = n_layers
         self.d_ff = d_ff
-        self.dropout = dropout
-        self.max_len = max_len
+        self.ff_dropout = ff_dropout
+        self.attention_dropout = attention_dropout
+        self.linear_dropout = linear_dropout
         self.label_smoothing = label_smoothing
         self.layer_norm_eps = layer_norm_eps
         self.bias = bias
