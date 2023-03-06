@@ -66,7 +66,7 @@ class LayerBlock(nn.Module):
     def __init__(self, config: TransformerConfig, model_block):
         super().__init__()
         self.layer = model_block
-        self.layer_norm = nn.LayerNorm(config.layer_norm_eps)
+        self.layer_norm = LayerNorm(config.d_embed, config.layer_norm_eps)
         self.layer_norm_first = config.layer_norm_first if hasattr(config, "layer_norm_first") else False
 
     def forward(self, x):
@@ -221,3 +221,24 @@ class MultiHeadAttention(nn.Module):
         output = self.linear_dropout(output)
 
         return output, attention_weights
+
+
+class LayerNorm(nn.Module):
+    """
+    Layer Normalization from scratch (https://arxiv.org/abs/1607.06450)
+    It is done by computing the mean and variance for all
+    inputs to the neurons in a layer on a single sample in batch independently.
+    """
+    def __init__(self, size, eps=1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(size))
+        self.bias = nn.Parameter(torch.zeros(size))
+        self.epsilon = eps
+
+    def forward(self, x):
+        mean = x.mean(-1, keepdim=True)
+        var = ((x - mean)**2).mean(-1, keepdim=True)
+        std = (var + self.epsilon).sqrt()
+        y = (x - mean) / std
+        y = y * self.weight + self.bias
+        return y

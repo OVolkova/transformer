@@ -11,7 +11,7 @@ class TransformerConfig:
         attention_dropout=0.1,
         linear_dropout=0.1,
         label_smoothing=0.0,
-        layer_norm_eps=1e-12,
+        layer_norm_eps=1,
         bias=False,
         layer_norm_first=False
     ):
