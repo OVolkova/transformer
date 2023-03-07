@@ -16,9 +16,6 @@ class VanillaTransformer(nn.Module):
     Transformer model with Encoder and Decoder.
     Both Input and Output are transformed to embeddings with positional encoding.
     The next token prediction is done by a linear layer on the output of the decoder.
-
-    TODO: softmax on output
-    TODO: add generation method
     """
 
     def __init__(
@@ -34,9 +31,9 @@ class VanillaTransformer(nn.Module):
 
         self.linear = nn.Linear(config.d_embed, config.output_vocab_size)
 
-    def forward(self, x, y, encoder_mask=None, decoder_mask=None):
+    def forward(self, x, targets, encoder_mask=None, decoder_mask=None):
         encoded, encoder_attention = self.encode(x, encoder_mask)
-        output, decoder_attention = self.decode(y, encoded, decoder_mask)
+        output, decoder_attention = self.decode(targets, encoded, decoder_mask)
         return output, AttentionOutput(
             encoder=encoder_attention, decoder=decoder_attention
         )
@@ -51,11 +48,31 @@ class VanillaTransformer(nn.Module):
         decoded, attention, cross_attention = self.decoder(
             embedded, y=encoded, mask=mask
         )
-        output = self.linear(decoded)
-        output = torch.softmax(output, dim=1)
-        return output, attention
+        logits = self.linear(decoded)
+        return logits, attention
+
+    def generate(
+        self, x, max_len, do_sample=False, top_k=None, sos_token_id=0, encoder_mask=None
+    ):
+        targets = torch.Tensor([sos_token_id]).long().unsqueeze(0).repeat(x.shape[0], 1)
+        for _ in max_len:
+            logits, _ = self(
+                x, targets=targets, encoder_mask=encoder_mask, decoder_mask=None
+            )
+            probs = torch.softmax(logits, dim=-1)
+            if top_k is not None:
+                v, _ = torch.topk(logits, top_k)
+                logits[logits < v[:, [-1]]] = -float("Inf")
+            if do_sample:
+                idx_next = torch.multinomial(probs, num_samples=1)
+            else:
+                _, idx_next = torch.topk(probs, k=1, dim=-1)
+            targets = torch.cat([targets, idx_next], dim=-1)
+
+        return targets
 
 
 if __name__ == "__main__":
     config_ = TransformerConfig()
     model = VanillaTransformer(config_)
+    print(model)

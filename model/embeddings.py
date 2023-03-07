@@ -81,4 +81,4 @@ class SinusoidPositionalEncoding(nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, x):
-        return Variable(self.pe[:, :x.size(1)], requires_grad=False)
+        return Variable(self.pe[:, : x.size(1)], requires_grad=False)
