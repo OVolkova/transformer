@@ -182,15 +182,7 @@ class DecoderLayer(nn.Module):
         self.feed_forward = FeedForward(config)
 
     def forward(self, x, y, mask=None):
-        if mask is None:
-            mask = self.tril[:, :, : x.size(1), : x.size(1)]
-        else:
-            mask = (
-                mask.view(1, 1, mask.size(0), mask.size(1))
-                & self.tril[:, :, : x.size(1), : x.size(1)]
-            )
-
-        x, masked_attention_weights = self.masked_self_attention(x, x, mask=mask)
+        x, masked_attention_weights = self.masked_self_attention(x, x, mask=mask.view(1, 1, mask.size(0), mask.size(1)))
         x, cross_attention_weights = self.cross_attention(x, y)
         x = self.feed_forward(x)
         return x, AttentionLayerOutput(
