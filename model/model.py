@@ -3,13 +3,14 @@ Transformer model.
  Most of the implementation is based on "Attention is all you need" (https://arxiv.org/abs/1706.03762)
 """
 
+from dataclasses import dataclass
+from typing import List, Optional
+
 import torch
 import torch.nn as nn
+from torch.autograd import Variable
 
 from model.config import TransformerConfig
-from typing import Optional, List
-
-from dataclasses import dataclass
 
 
 @dataclass
@@ -26,14 +27,13 @@ class AttentionOutput:
 
 class VanilaTransformer(nn.Module):
     """
-    Transformer model with:
-    - Embedding layer (vocab size, embedding size)
-    - TODO: Positional encoding
-    - Encoder
-    - Decoder
-    - Linear layer for the fincal prediction (vocab size)
+    Transformer model with Encoder and Decoder.
+    Both Input and Output are transformed to embeddings with positional encoding.
+    The next token prediction is done by a linear layer on the output of the decoder.
 
     TODO: Add init weights
+    TODO: softmax on output
+    TODO: add generation method
     """
 
     def __init__(
@@ -41,10 +41,12 @@ class VanilaTransformer(nn.Module):
         config: TransformerConfig,
     ):
         super().__init__()
-        self.encoder_embedding = nn.Embedding(config.input_vocab_size, config.d_embed)
+        self.encoder_embedding = Embeddings(config.input_vocab_size, config)
         self.encoder = ModelBlock(config, EncoderLayer)
-        self.decoder_embedding = nn.Embedding(config.output_vocab_size, config.d_embed)
+
+        self.decoder_embedding = Embeddings(config.output_vocab_size, config)
         self.decoder = ModelBlock(config, DecoderLayer)
+
         self.linear = nn.Linear(config.d_embed, config.output_vocab_size)
 
     def forward(self, x, y, encoder_mask=None, decoder_mask=None):
@@ -67,6 +69,74 @@ class VanilaTransformer(nn.Module):
         output = self.linear(decoded)
         output = torch.softmax(output, dim=1)
         return output, attention
+
+
+class Embeddings(nn.Module):
+    """
+    Embedding layer for the input and output.
+    It consists of:
+    - Embedding layer
+    - Positional encoding
+    - Dropout layer
+    """
+
+    def __init__(self, vocab_size, config: TransformerConfig):
+        super().__init__()
+        # Embeddings are just a lookup table of size (vocab_size, embedding_size).
+        # For each token, we get a vector of size embedding_size from the lookup table.
+        # The embedding layer could be considered as a linear layer without bias, just weights.
+        # It is initialized with random weights and trained along with the model.
+        self.embedding = nn.Embedding(vocab_size, config.d_embed)
+
+        # Positional encoding in the original paper could be done 2 ways:
+        if config.position_encoding_learned:
+            #  1. Learned encoding
+            self.positional_encoding = nn.Embedding(config.d_seq, config.d_embed)
+        else:
+            # 2. Sinusoid encoding
+            self.positional_encoding = SinusoidPositionalEncoding(
+                config.d_seq, config.d_embed
+            )
+
+        # dropout layer is applied to the sum of embeddings and positional encoding
+        self.dropout = nn.Dropout(config.emb_dropout)
+
+    def forward(self, x):
+        embedded = self.embedding(x) * torch.sqrt(self.config.d_embed)
+        positions = self.positional_encoding(x.size(1))
+        return self.dropout(embedded + positions)
+
+
+class SinusoidPositionalEncoding(nn.Module):
+    """
+    Sinusoid positional encoding.
+    It is used to add positional information to the input.
+    It is a fixed function of the position.
+    i.e. the same position will always have the same encoding and is not learnable.
+    It is using the formula:
+        PE(pos, 2i) = sin(pos/10000^(2i/d_model))
+        PE(pos, 2i+1) = cos(pos/10000^(2i/d_model))
+    The implementation is done with exponentiation and log to avoid division and power of big numbers.
+    It is based on the fact that:
+        1/M^N = exp(log(1/M^N)) = exp(-N*log(M))
+    Where:
+        M = 10000, N = 2i/d_model
+    """
+
+    def __init__(self, d_seq, d_embed):
+        super().__init__()
+        self.d_embed = d_embed
+        self.d_seq = d_seq
+        pe = torch.zeros(d_seq, d_embed)
+        wavelengths = torch.exp(
+            torch.arange(0, d_embed, 2) / d_embed * -torch.log(torch.tensor(10000.0))
+        )
+        pe[:, 0::2] = torch.sin(torch.arange(0, d_seq).unsqueeze(1) * wavelengths)
+        pe[:, 1::2] = torch.cos(torch.arange(0, d_seq).unsqueeze(1) * wavelengths)
+        self.register_buffer("pe", pe)
+
+    def forward(self, size):
+        return Variable(self.pe[:, :size], requires_grad=False)
 
 
 class ModelBlock(nn.Module):

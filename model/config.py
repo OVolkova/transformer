@@ -8,6 +8,7 @@ class TransformerConfig:
         n_heads,
         n_layers,
         d_ff,
+        emb_dropout=0.1,
         ff_dropout=0.1,
         attention_dropout=0.1,
         linear_dropout=0.1,
@@ -15,6 +16,7 @@ class TransformerConfig:
         layer_norm_eps=1,
         bias=False,
         layer_norm_first=False,
+        position_encoding_learned=False,
     ):
         self.input_vocab_size = input_vocab_size
         self.output_vocab_size = output_vocab_size
@@ -23,6 +25,7 @@ class TransformerConfig:
         self.n_heads = n_heads
         self.n_layers = n_layers
         self.d_ff = d_ff
+        self.emb_dropout = emb_dropout
         self.ff_dropout = ff_dropout
         self.attention_dropout = attention_dropout
         self.linear_dropout = linear_dropout
@@ -30,3 +33,4 @@ class TransformerConfig:
         self.layer_norm_eps = layer_norm_eps
         self.bias = bias
         self.layer_norm_first = layer_norm_first
+        self.position_encoding_learned = position_encoding_learned
