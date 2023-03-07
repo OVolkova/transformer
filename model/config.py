@@ -14,7 +14,7 @@ class TransformerConfig:
         label_smoothing=0.0,
         layer_norm_eps=1,
         bias=False,
-        layer_norm_first=False
+        layer_norm_first=False,
     ):
         self.input_vocab_size = input_vocab_size
         self.output_vocab_size = output_vocab_size

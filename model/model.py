@@ -7,22 +7,38 @@ import torch
 import torch.nn as nn
 
 from model.config import TransformerConfig
+from typing import Optional, List
+
+from dataclasses import dataclass
+
+
+@dataclass
+class AttentionLayerOutput:
+    self_attention: torch.Tensor
+    cross_attention: Optional[torch.Tensor]
+
+
+@dataclass
+class AttentionOutput:
+    encoder: List[AttentionLayerOutput]
+    decoder: List[AttentionLayerOutput]
 
 
 class VanilaTransformer(nn.Module):
     """
     Transformer model with:
-    - TODO: Embedding layer (vocab size, embedding size)
+    - Embedding layer (vocab size, embedding size)
     - TODO: Positional encoding
     - Encoder
     - Decoder
     - Linear layer for the fincal prediction (vocab size)
 
     TODO: Add init weights
-    TODO: add output dataclass for attention weights
     """
+
     def __init__(
-        self, config: TransformerConfig,
+        self,
+        config: TransformerConfig,
     ):
         super().__init__()
         self.encoder_embedding = nn.Embedding(config.input_vocab_size, config.d_embed)
@@ -34,7 +50,9 @@ class VanilaTransformer(nn.Module):
     def forward(self, x, y, encoder_mask=None, decoder_mask=None):
         encoded, encoder_attention = self.encode(x, encoder_mask)
         output, decoder_attention = self.decode(y, encoded, decoder_mask)
-        return output, encoder_attention, decoder_attention
+        return output, AttentionOutput(
+            encoder=encoder_attention, decoder=decoder_attention
+        )
 
     def encode(self, x, mask=None):
         embedded = self.encoder_embedding(x)
@@ -43,7 +61,9 @@ class VanilaTransformer(nn.Module):
 
     def decode(self, x, encoded, mask=None):
         embedded = self.decoder_embedding(x)
-        decoded, attention, cross_attention = self.decoder(embedded, y=encoded, mask=mask)
+        decoded, attention, cross_attention = self.decoder(
+            embedded, y=encoded, mask=mask
+        )
         output = self.linear(decoded)
         output = torch.softmax(output, dim=1)
         return output, attention
@@ -54,6 +74,7 @@ class ModelBlock(nn.Module):
     Model block: It consists of a number of layers.
     It returns list of attention weights if the layers returns them.
     """
+
     def __init__(self, config: TransformerConfig, layer):
         super().__init__()
         self.layers = nn.ModuleList([layer(config) for _ in range(config.n_layers)])
@@ -72,6 +93,7 @@ class EncoderLayer(nn.Module):
     Encoder layer:
     It consists of a self-attention layer and a feed-forward layer.
     """
+
     def __init__(self, config: TransformerConfig):
         super().__init__()
         self.self_attention = AttentionLayer(config)
@@ -80,7 +102,9 @@ class EncoderLayer(nn.Module):
     def forward(self, x, y=None, mask=None):
         x, self_attention_weights = self.self_attention(x, x, mask=mask)
         x = self.feed_forward(x)
-        return x, self_attention_weights
+        return x, AttentionLayerOutput(
+            self_attention=self_attention_weights, cross_attention=None
+        )
 
 
 class DecoderLayer(nn.Module):
@@ -89,37 +113,53 @@ class DecoderLayer(nn.Module):
     It consists of a masked self-attention layer, a cross-attention layer and a feed-forward layer.
     Lower triangular mask is used to prevent attention to future tokens in masked self-attention.
     """
+
     def __init__(self, config: TransformerConfig):
         super().__init__()
         self.masked_self_attention = AttentionLayer(config)
-        self.register_buffer("tril", torch.tril(torch.ones(config.d_seq, config.d_seq))
-                             .view(1, 1, config.d_seq, config.d_seq))
+        self.register_buffer(
+            "tril",
+            torch.tril(torch.ones(config.d_seq, config.d_seq)).view(
+                1, 1, config.d_seq, config.d_seq
+            ),
+        )
 
         self.cross_attention = AttentionLayer(config)
         self.feed_forward = FeedForward(config)
 
     def forward(self, x, y, mask=None):
         if mask is None:
-            mask = self.tril[:, :, :x.size(1), :x.size(1)]
+            mask = self.tril[:, :, : x.size(1), : x.size(1)]
         else:
-            mask = mask.view(1, 1, mask.size(0), mask.size(1)) & self.tril[:, :, :x.size(1), :x.size(1)]
+            mask = (
+                mask.view(1, 1, mask.size(0), mask.size(1))
+                & self.tril[:, :, : x.size(1), : x.size(1)]
+            )
 
         x, masked_attention_weights = self.masked_self_attention(x, x, mask=mask)
         x, cross_attention_weights = self.cross_attention(x, y)
         x = self.feed_forward(x)
-        return x, masked_attention_weights, cross_attention_weights
+        return x, AttentionLayerOutput(
+            self_attention=masked_attention_weights,
+            cross_attention=cross_attention_weights,
+        )
 
 
 class FeedForward(nn.Module):
     """
     Feed-forward layer
     """
+
     def __init__(self, config: TransformerConfig):
         super().__init__()
         self.feed_forward = nn.Sequential()
-        self.feed_forward.append(nn.Linear(config.d_embed, config.d_ff, bias=config.bias))
+        self.feed_forward.append(
+            nn.Linear(config.d_embed, config.d_ff, bias=config.bias)
+        )
         self.feed_forward.append(nn.ReLU())
-        self.feed_forward.append(nn.Linear(config.d_ff, config.d_embed, bias=config.bias))
+        self.feed_forward.append(
+            nn.Linear(config.d_ff, config.d_embed, bias=config.bias)
+        )
         self.feed_forward.append(nn.Dropout(config.ff_dropout))
         self.layer_norm_first = config.layer_norm_first
         self.layer_norm = LayerNorm(config.d_embed, config.layer_norm_eps)
@@ -141,6 +181,7 @@ class AttentionLayer(nn.Module):
     Layer normalization is applied before or after the layer.
     It returns attention weights if the layer returns them.
     """
+
     def __init__(self, config: TransformerConfig):
         super().__init__()
         self.attention = MultiHeadAttention(config)
@@ -149,7 +190,9 @@ class AttentionLayer(nn.Module):
 
     def forward(self, x, y, mask=None):
         if self.layer_norm_first:
-            out, attention = self.attention(self.layer_norm(x), self.layer_norm(y), mask=mask)
+            out, attention = self.attention(
+                self.layer_norm(x), self.layer_norm(y), mask=mask
+            )
             out = out + x
         else:
             out, attention = self.attention(x, y, mask=mask)
@@ -166,6 +209,7 @@ class MultiHeadAttention(nn.Module):
      or any other arbitrary masking.
     Forward method returns attention weights for visualization.
     """
+
     def __init__(self, config: TransformerConfig):
         super().__init__()
         assert config.d_embed % config.n_heads == 0
@@ -195,7 +239,7 @@ class MultiHeadAttention(nn.Module):
         # (B, n_heads, T, hidden_size) * (B, n_heads, hidden_size, T) = (B, n_heads, T, T)
         scaled_qk = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(k.shape[-1])
         if mask is not None:
-            scaled_qk = scaled_qk.masked_fill(mask == 0, float('-inf'))
+            scaled_qk = scaled_qk.masked_fill(mask == 0, float("-inf"))
         attention_weights = torch.softmax(scaled_qk, dim=-1)
         attention_weights = self.attention_dropout(attention_weights)
 
@@ -217,6 +261,7 @@ class LayerNorm(nn.Module):
     It is done by computing the mean and variance for all
     inputs to the neurons in a layer on a single sample in batch independently.
     """
+
     def __init__(self, size, eps=1e-6):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(size))
@@ -225,7 +270,7 @@ class LayerNorm(nn.Module):
 
     def forward(self, x):
         mean = x.mean(-1, keepdim=True)
-        var = ((x - mean)**2).mean(-1, keepdim=True)
+        var = ((x - mean) ** 2).mean(-1, keepdim=True)
         std = (var + self.epsilon).sqrt()
         y = (x - mean) / std
         y = y * self.weight + self.bias
