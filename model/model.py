@@ -25,16 +25,28 @@ class VanilaTransformer(nn.Module):
         self, config: TransformerConfig,
     ):
         super().__init__()
+        self.encoder_embedding = nn.Embedding(config.input_vocab_size, config.d_embed)
         self.encoder = ModelBlock(config, EncoderLayer)
+        self.decoder_embedding = nn.Embedding(config.output_vocab_size, config.d_embed)
         self.decoder = ModelBlock(config, DecoderLayer)
-        self.linear = nn.Linear(config.d_embed, config.vocab_size)
+        self.linear = nn.Linear(config.d_embed, config.output_vocab_size)
 
-    def forward(self, x):
-        encoded, encoder_attention = self.encoder(x)
-        decoded, decoder_attention = self.decoder(encoded)
+    def forward(self, x, y, encoder_mask=None, decoder_mask=None):
+        encoded, encoder_attention = self.encode(x, encoder_mask)
+        output, decoder_attention = self.decode(y, encoded, decoder_mask)
+        return output, encoder_attention, decoder_attention
+
+    def encode(self, x, mask=None):
+        embedded = self.encoder_embedding(x)
+        encoded, attention = self.encoder(embedded, mask=mask)
+        return encoded, attention
+
+    def decode(self, x, encoded, mask=None):
+        embedded = self.decoder_embedding(x)
+        decoded, attention, cross_attention = self.decoder(embedded, y=encoded, mask=mask)
         output = self.linear(decoded)
         output = torch.softmax(output, dim=1)
-        return output, encoder_attention, decoder_attention
+        return output, attention
 
 
 class ModelBlock(nn.Module):
@@ -46,61 +58,13 @@ class ModelBlock(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList([layer(config) for _ in range(config.n_layers)])
 
-    def forward(self, x):
+    def forward(self, x, y=None, mask=None):
         attention = []
         for layer in self.layers:
-            x = layer(x)
-            if isinstance(x, tuple):
-                attention.append(x[1:])
-                x = x[0]
+            x = layer(x, y=y, mask=mask)
+            attention.append(x[1:])
+            x = x[0]
         return x, attention
-
-
-class LayerBlock(nn.Module):
-    """
-    Layer block:
-    It consists of a layer and a layer normalization.
-    Layer normalization is applied before or after the layer.
-    It returns attention weights if the layer returns them.
-    """
-    def __init__(self, config: TransformerConfig, model_block):
-        super().__init__()
-        self.layer = model_block
-        self.layer_norm = LayerNorm(config.d_embed, config.layer_norm_eps)
-        self.layer_norm_first = config.layer_norm_first if hasattr(config, "layer_norm_first") else False
-
-    def forward(self, x):
-        attention = None
-        if self.layer_norm_first:
-            out = self.layer(self.layer_norm(x))
-        else:
-            out = self.layer(x)
-        if isinstance(out, tuple):
-            attention = out[1:]
-            out = out[0]
-        if self.layer_norm_first:
-            out = out + x
-        else:
-            out = self.layer_norm(out + x)
-        if attention is None:
-            return out
-        return out, attention
-
-
-class FeedForward(nn.Module):
-    """
-    Feed-forward layer
-    """
-    def __init__(self, config: TransformerConfig):
-        super().__init__()
-        self.feed_forward = nn.Sequential()
-        self.feed_forward.append(nn.Linear(config.d_embed, config.d_ff, bias=config.bias))
-        self.feed_forward.append(nn.ReLU())
-        self.feed_forward.append(nn.Linear(config.d_ff, config.d_embed, bias=config.bias))
-        self.feed_forward.append(nn.Dropout(config.ff_dropout))
-
-    def forward(self, x):
-        return self.feed_forward(x)
 
 
 class EncoderLayer(nn.Module):
@@ -110,14 +74,10 @@ class EncoderLayer(nn.Module):
     """
     def __init__(self, config: TransformerConfig):
         super().__init__()
-        self.self_attention = LayerBlock(
-            config, MultiHeadAttention(config)
-        )
-        self.feed_forward = LayerBlock(
-            config, FeedForward(config)
-        )
+        self.self_attention = AttentionLayer(config)
+        self.feed_forward = FeedForward(config)
 
-    def forward(self, x, mask=None):
+    def forward(self, x, y=None, mask=None):
         x, self_attention_weights = self.self_attention(x, x, mask=mask)
         x = self.feed_forward(x)
         return x, self_attention_weights
@@ -131,37 +91,70 @@ class DecoderLayer(nn.Module):
     """
     def __init__(self, config: TransformerConfig):
         super().__init__()
-        self.masked_self_attention = LayerBlock(
-            config, MultiHeadAttention(config)
-        )
+        self.masked_self_attention = AttentionLayer(config)
         self.register_buffer("tril", torch.tril(torch.ones(config.d_seq, config.d_seq))
                              .view(1, 1, config.d_seq, config.d_seq))
 
-        self.cross_attention = LayerBlock(
-            config, MultiHeadAttention(config)
-        )
-        self.feed_forward = LayerBlock(
-            config, FeedForward(config)
-        )
+        self.cross_attention = AttentionLayer(config)
+        self.feed_forward = FeedForward(config)
 
-    def forward(self, x, y, self_mask=None, cross_mask=None):
-        """
-        Args:
-            x: query
-            y: key and value
-            self_mask: mask for masked self-attention
-            cross_mask: mask for cross-attention
-        Returns: output, (masked_attention_weights, cross_attention_weights)
-        """
-        if self_mask is None:
+    def forward(self, x, y, mask=None):
+        if mask is None:
             mask = self.tril[:, :, :x.size(1), :x.size(1)]
         else:
-            mask = self_mask.view(1, 1, self_mask.size(0), self_mask.size(1)) & self.tril[:, :, :x.size(1), :x.size(1)]
+            mask = mask.view(1, 1, mask.size(0), mask.size(1)) & self.tril[:, :, :x.size(1), :x.size(1)]
 
         x, masked_attention_weights = self.masked_self_attention(x, x, mask=mask)
-        x, cross_attention_weights = self.cross_attention(x, y, mask=cross_mask)
+        x, cross_attention_weights = self.cross_attention(x, y)
         x = self.feed_forward(x)
-        return x, (masked_attention_weights, cross_attention_weights)
+        return x, masked_attention_weights, cross_attention_weights
+
+
+class FeedForward(nn.Module):
+    """
+    Feed-forward layer
+    """
+    def __init__(self, config: TransformerConfig):
+        super().__init__()
+        self.feed_forward = nn.Sequential()
+        self.feed_forward.append(nn.Linear(config.d_embed, config.d_ff, bias=config.bias))
+        self.feed_forward.append(nn.ReLU())
+        self.feed_forward.append(nn.Linear(config.d_ff, config.d_embed, bias=config.bias))
+        self.feed_forward.append(nn.Dropout(config.ff_dropout))
+        self.layer_norm_first = config.layer_norm_first
+        self.layer_norm = LayerNorm(config.d_embed, config.layer_norm_eps)
+
+    def forward(self, x):
+        if self.layer_norm_first:
+            out = self.feed_forward(self.layer_norm(x))
+            out = out + x
+        else:
+            out = self.feed_forward(x)
+            out = self.layer_norm(out + x)
+        return out
+
+
+class AttentionLayer(nn.Module):
+    """
+    Layer block:
+    It consists of a layer and a layer normalization.
+    Layer normalization is applied before or after the layer.
+    It returns attention weights if the layer returns them.
+    """
+    def __init__(self, config: TransformerConfig):
+        super().__init__()
+        self.attention = MultiHeadAttention(config)
+        self.layer_norm = LayerNorm(config.d_embed, config.layer_norm_eps)
+        self.layer_norm_first = config.layer_norm_first
+
+    def forward(self, x, y, mask=None):
+        if self.layer_norm_first:
+            out, attention = self.attention(self.layer_norm(x), self.layer_norm(y), mask=mask)
+            out = out + x
+        else:
+            out, attention = self.attention(x, y, mask=mask)
+            out = self.layer_norm(out + x)
+        return out, attention
 
 
 class MultiHeadAttention(nn.Module):
@@ -184,19 +177,14 @@ class MultiHeadAttention(nn.Module):
         self.linear = nn.Linear(config.n_heads * config.d_embed, config.d_embed)
         self.linear_dropout = nn.Dropout(config.linear_dropout)
 
-    def forward(self, q, k, v=None, mask=None):
+    def forward(self, q, k, mask=None):
         assert q.shape == k.shape
-        if v is not None:
-            assert k.shape == v.shape
         B, T, C = q.shape  # (B = batch size , T = sequence length, C = embedding dim)
         assert C % self.n_heads == 0
 
         q = self.queries(q)
         k = self.keys(k)
-        if v in None:
-            v = self.values(k)
-        else:
-            v = self.values(v)
+        v = self.values(k)
 
         # (B, T, n_heads * hidden_size) -> (B, T, n_heads, hidden_size) -> (B, n_heads, T, hidden_size)
         # where n_heads * hidden_size = C
