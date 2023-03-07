@@ -39,7 +39,8 @@ class Embeddings(nn.Module):
 
     def forward(self, x):
         embedded = self.embedding(x) * torch.sqrt(self.config.d_embed)
-        positions = self.positional_encoding(x.size(1))
+        pos = torch.arange(0, x.size(1)).unsqueeze(0)
+        positions = self.positional_encoding(pos)
         return self.dropout(embedded + positions)
 
     def init_weights(self, module):
@@ -79,5 +80,5 @@ class SinusoidPositionalEncoding(nn.Module):
         pe[:, 1::2] = torch.cos(torch.arange(0, d_seq).unsqueeze(1) * wavelengths)
         self.register_buffer("pe", pe)
 
-    def forward(self, size):
-        return Variable(self.pe[:, :size], requires_grad=False)
+    def forward(self, x):
+        return Variable(self.pe[:, :x.size(1)], requires_grad=False)
