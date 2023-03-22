@@ -12,6 +12,7 @@ class NumbersRule(Dataset):
     output: bos + (reversed input divided by 2 with skipped odd numbers) + eos
 
     """
+
     def __init__(self, split, max_length=10, input_size=50):
         assert split in {"train", "test"}
         self.split = split
@@ -31,7 +32,7 @@ class NumbersRule(Dataset):
         return self.length
 
     def __getitem__(self, idx):
-        n = np.random.randint(1, self.length)
+        n = np.random.randint(1, self.length + 1)
         while True:
             src = torch.randint(1, self.input_size, size=(n,), dtype=torch.long)
             # figure out if this generated example is train or test based on its hash
@@ -48,10 +49,10 @@ class NumbersRule(Dataset):
             dtype=torch.long,
         )
         tgt_len = tgt.size(0)
-        tgt = torch.cat((tgt, torch.zeros(10 + 2 - tgt_len).long()), dim=0)
-        src = torch.cat((src, torch.zeros(10 - n).long()), dim=0)
+        tgt = torch.cat((tgt, torch.zeros(self.length + 2 - tgt_len).long()), dim=0)
+        src = torch.cat((src, torch.zeros(self.length - n).long()), dim=0)
         padding_mask = torch.cat(
-            (torch.ones(n).long(), torch.zeros(10 - n).long()), dim=0
+            (torch.ones(n).long(), torch.zeros(self.length - n).long()), dim=0
         )
         return src, tgt, padding_mask, tgt_len
 
@@ -63,3 +64,10 @@ if __name__ == "__main__":
         print(train[k])
     for k in range(10):
         print(test[k])
+
+    from torch.utils.data import DataLoader
+
+    loader = DataLoader(train, batch_size=4, shuffle=True)
+    for batch in loader:
+        print(batch)
+        break

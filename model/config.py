@@ -1,4 +1,4 @@
-class TransformerConfig:
+class VanillaTransformerConfig:
     def __init__(
         self,
         input_vocab_size=100,
@@ -13,10 +13,10 @@ class TransformerConfig:
         attention_dropout=0.1,
         linear_dropout=0.1,
         label_smoothing=0.0,
-        layer_norm_eps=1,
+        layer_norm_eps=1**(-5),
         bias=False,
-        layer_norm_first=False,
-        position_encoding_learned=False,
+        layer_norm_first=True,
+        position_encoding_learned=True,
     ):
         self.input_vocab_size = input_vocab_size
         self.output_vocab_size = output_vocab_size

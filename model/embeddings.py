@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-from model.config import TransformerConfig
+from model.config import VanillaTransformerConfig
 
 
 class Embeddings(nn.Module):
@@ -14,8 +14,9 @@ class Embeddings(nn.Module):
     - Dropout layer
     """
 
-    def __init__(self, vocab_size, config: TransformerConfig):
+    def __init__(self, vocab_size, config: VanillaTransformerConfig):
         super().__init__()
+        self.scaling_dims = torch.sqrt(torch.tensor(config.d_embed))
         # Embeddings are just a lookup table of size (vocab_size, embedding_size).
         # For each token, we get a vector of size embedding_size from the lookup table.
         # The embedding layer could be considered as a linear layer without bias, just weights.
@@ -38,8 +39,10 @@ class Embeddings(nn.Module):
         self.apply(self.init_weights)
 
     def forward(self, x):
-        embedded = self.embedding(x) * torch.sqrt(self.config.d_embed)
-        pos = torch.arange(0, x.size(1)).unsqueeze(0)
+        embedded = (
+            self.embedding(x) * self.scaling_dims
+        )  # (batch_size, seq_len, d_embed)
+        pos = torch.arange(0, embedded.size(1)).unsqueeze(0)
         positions = self.positional_encoding(pos)
         return self.dropout(embedded + positions)
 
@@ -81,4 +84,4 @@ class SinusoidPositionalEncoding(nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, x):
-        return Variable(self.pe[:, : x.size(1)], requires_grad=False)
+        return Variable(self.pe[: x.size(1), :], requires_grad=False)

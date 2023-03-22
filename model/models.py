@@ -6,7 +6,7 @@ Transformer model.
 import torch
 import torch.nn as nn
 
-from model.config import TransformerConfig
+from model.config import VanillaTransformerConfig
 from model.embeddings import Embeddings
 from model.layers import AttentionOutput, DecoderLayer, EncoderLayer, ModelBlock
 
@@ -20,7 +20,7 @@ class VanillaTransformer(nn.Module):
 
     def __init__(
         self,
-        config: TransformerConfig,
+        config: VanillaTransformerConfig,
     ):
         super().__init__()
         self.encoder_embedding = Embeddings(config.input_vocab_size, config)
@@ -45,9 +45,7 @@ class VanillaTransformer(nn.Module):
 
     def decode(self, x, encoded, mask=None):
         embedded = self.decoder_embedding(x)
-        decoded, attention, cross_attention = self.decoder(
-            embedded, y=encoded, mask=mask
-        )
+        decoded, attention = self.decoder(embedded, y=encoded, mask=mask)
         logits = self.linear(decoded)
         return logits, attention
 
@@ -55,16 +53,16 @@ class VanillaTransformer(nn.Module):
         self, x, max_len, do_sample=False, top_k=None, sos_token_id=0, encoder_mask=None
     ):
         targets = torch.Tensor([sos_token_id]).long().unsqueeze(0).repeat(x.shape[0], 1)
-        for _ in max_len:
+        for _ in range(max_len):
             logits, _ = self(
                 x, targets=targets, encoder_mask=encoder_mask, decoder_mask=None
             )
-            probs = torch.softmax(logits, dim=-1)
             if top_k is not None:
                 v, _ = torch.topk(logits, top_k)
                 logits[logits < v[:, [-1]]] = -float("Inf")
+            probs = torch.softmax(logits, dim=-1)
             if do_sample:
-                idx_next = torch.multinomial(probs, num_samples=1)
+                idx_next = torch.multinomial(probs[:, -1, :], num_samples=1)
             else:
                 _, idx_next = torch.topk(probs, k=1, dim=-1)
             targets = torch.cat([targets, idx_next], dim=-1)
@@ -73,6 +71,6 @@ class VanillaTransformer(nn.Module):
 
 
 if __name__ == "__main__":
-    config_ = TransformerConfig()
+    config_ = VanillaTransformerConfig()
     model = VanillaTransformer(config_)
     print(model)

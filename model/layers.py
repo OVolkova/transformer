@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from model.attention import MultiHeadAttention
-from model.config import TransformerConfig
+from model.config import VanillaTransformerConfig
 
 
 class LayerNorm(nn.Module):
@@ -37,7 +37,7 @@ class FeedForward(nn.Module):
     Feed-forward layer
     """
 
-    def __init__(self, config: TransformerConfig):
+    def __init__(self, config: VanillaTransformerConfig):
         super().__init__()
         self.feed_forward = nn.Sequential(
             OrderedDict(
@@ -105,7 +105,7 @@ class AttentionLayer(nn.Module):
     It returns attention weights if the layer returns them.
     """
 
-    def __init__(self, config: TransformerConfig):
+    def __init__(self, config: VanillaTransformerConfig):
         super().__init__()
         self.attention = MultiHeadAttention(config)
         self.layer_norm = LayerNorm(config.d_embed, config.layer_norm_eps)
@@ -129,7 +129,7 @@ class ModelBlock(nn.Module):
     It returns list of attention weights if the layers returns them.
     """
 
-    def __init__(self, config: TransformerConfig, layer):
+    def __init__(self, config: VanillaTransformerConfig, layer):
         super().__init__()
         self.layers = nn.ModuleList([layer(config) for _ in range(config.n_layers)])
 
@@ -148,13 +148,18 @@ class EncoderLayer(nn.Module):
     It consists of a self-attention layer and a feed-forward layer.
     """
 
-    def __init__(self, config: TransformerConfig):
+    def __init__(self, config: VanillaTransformerConfig):
         super().__init__()
         self.self_attention = AttentionLayer(config)
         self.feed_forward = FeedForward(config)
 
     def forward(self, x, y=None, mask=None):
-        x, self_attention_weights = self.self_attention(x, x, mask=mask)
+        mask = mask.view(mask.size(0), 1, 1, mask.size(1)) if mask is not None else None
+        x, self_attention_weights = self.self_attention(
+            x,
+            x,
+            mask=mask,
+        )
         x = self.feed_forward(x)
         return x, AttentionLayerOutput(
             self_attention=self_attention_weights, cross_attention=None
@@ -168,21 +173,19 @@ class DecoderLayer(nn.Module):
     Lower triangular mask is used to prevent attention to future tokens in masked self-attention.
     """
 
-    def __init__(self, config: TransformerConfig):
+    def __init__(self, config: VanillaTransformerConfig):
         super().__init__()
         self.masked_self_attention = AttentionLayer(config)
-        self.register_buffer(
-            "tril",
-            torch.tril(torch.ones(config.d_seq, config.d_seq)).view(
-                1, 1, config.d_seq, config.d_seq
-            ),
-        )
-
         self.cross_attention = AttentionLayer(config)
         self.feed_forward = FeedForward(config)
 
     def forward(self, x, y, mask=None):
-        x, masked_attention_weights = self.masked_self_attention(x, x, mask=mask.view(1, 1, mask.size(0), mask.size(1)))
+        mask = mask.view(mask.size(0), 1, 1, mask.size(1)) if mask is not None else None
+        x, masked_attention_weights = self.masked_self_attention(
+            x,
+            x,
+            mask=mask,
+        )
         x, cross_attention_weights = self.cross_attention(x, y)
         x = self.feed_forward(x)
         return x, AttentionLayerOutput(

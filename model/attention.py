@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from model.config import TransformerConfig
+from model.config import VanillaTransformerConfig
 
 
 class MultiHeadAttention(nn.Module):
@@ -14,7 +14,7 @@ class MultiHeadAttention(nn.Module):
     Forward method returns attention weights for visualization.
     """
 
-    def __init__(self, config: TransformerConfig):
+    def __init__(self, config: VanillaTransformerConfig):
         super().__init__()
         assert config.d_embed % config.n_heads == 0
         self.values = nn.Linear(config.d_embed, config.d_embed * config.n_heads)
@@ -28,28 +28,30 @@ class MultiHeadAttention(nn.Module):
         self.apply(self.init_weights)
 
     def forward(self, q, k, mask=None):
-        assert q.shape == k.shape
-        B, T, C = q.shape  # (B = batch size , T = sequence length, C = embedding dim)
-        assert C % self.n_heads == 0
-
         q = self.queries(q)
-        k = self.keys(k)
         v = self.values(k)
+        k = self.keys(k)
+
+        B, T, C = q.shape  # (B = batch size , T = sequence length, C = embedding dim)
+        Tk = k.size(1)
+        assert C % self.n_heads == 0
 
         # (B, T, n_heads * hidden_size) -> (B, T, n_heads, hidden_size) -> (B, n_heads, T, hidden_size)
         # where n_heads * hidden_size = C
-        k = k.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
+        k = k.view(B, Tk, self.n_heads, C // self.n_heads).transpose(1, 2)
         q = q.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
-        v = v.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
+        v = v.view(B, Tk, self.n_heads, C // self.n_heads).transpose(1, 2)
 
-        # (B, n_heads, T, hidden_size) * (B, n_heads, hidden_size, T) = (B, n_heads, T, T)
-        scaled_qk = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(k.shape[-1])
+        # (B, n_heads, T, hidden_size) * (B, n_heads, hidden_size, T) = (B, n_heads, T, Tk)
+        scaled_qk = torch.matmul(q, k.transpose(-2, -1)) / torch.sqrt(
+            torch.tensor(k.size(-1))
+        )
         if mask is not None:
             scaled_qk = scaled_qk.masked_fill(mask == 0, float("-inf"))
         attention_weights = torch.softmax(scaled_qk, dim=-1)
         attention_weights = self.attention_dropout(attention_weights)
 
-        # (B, n_heads, T, T) * (B, n_heads, T, hidden_size) = (B, n_heads, T, hidden_size)
+        # (B, n_heads, T, Tk) * (B, n_heads, Tk, hidden_size) = (B, n_heads, T, hidden_size)
         output = torch.matmul(attention_weights, v)
 
         # (B, n_heads, T, hidden_size) ->  (B, T, n_heads, hidden_size) -> (B, T, n_heads * hidden_size)
