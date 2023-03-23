@@ -46,7 +46,7 @@ class FeedForward(nn.Module):
                         "linear_with_relu",
                         nn.Linear(config.d_embed, config.d_ff, bias=config.bias),
                     ),
-                    ("relu", nn.ReLU()),
+                    ("relu", nn.GELU()),
                     (
                         "linear",
                         nn.Linear(config.d_ff, config.d_embed, bias=config.bias),

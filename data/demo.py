@@ -13,14 +13,15 @@ class NumbersRule(Dataset):
 
     """
 
-    def __init__(self, split, max_length=10, input_size=50):
+    def __init__(self, split, max_length=10, input_size=50, length=10000):
         assert split in {"train", "test"}
         self.split = split
         self.length = max_length
         self.input_size = input_size
+        self.dataset_length = length
 
     def __len__(self):
-        return 10000  # ...
+        return self.dataset_length
 
     def get_input_vocab_size(self):
         return self.input_size
