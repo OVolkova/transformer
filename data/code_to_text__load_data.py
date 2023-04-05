@@ -18,7 +18,7 @@ def save_data(dataset, column, path, split='train'):
 
 if __name__ == '__main__':
     dataset = load_dataset("code_x_glue_ct_code_to_text", "python")
-    data_path = 'dataset/code_to_text'
+    data_path = '../dataset/code_to_text'
     split = 'train'
     column = 'code_tokens'
     save_data(dataset, column, data_path, split=split)
