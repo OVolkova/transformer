@@ -38,9 +38,7 @@ class NumbersRule(Dataset):
             src = torch.randint(1, self.input_size, size=(n,), dtype=torch.long)
             # figure out if this generated example is train or test based on its hash
             h = hash(pickle.dumps(src.tolist())) % 4
-            inp_split = (
-                "test" if h == 0 else "train"
-            )  # designate 25% of examples as test
+            inp_split = "test" if h == 0 else "train"  # designate 25% of examples as test
             if inp_split == self.split:
                 break  # ok
         tgt = torch.tensor(
