@@ -11,6 +11,7 @@ import json
 from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
+
 from logger import logger
 
 Word = Tuple[str, ...]
@@ -105,8 +106,11 @@ def update_counts(counts: Dict[Pair, int], pair: Pair, freq: int):
 
 
 def update_pairs_counts_from_merge(
-    word: Word, freq: int, pairs_counts: Dict[Pair, int], starts: List[int],
-        verbose: bool = False
+    word: Word,
+    freq: int,
+    pairs_counts: Dict[Pair, int],
+    starts: List[int],
+    verbose: bool = False,
 ):
     for k, i in enumerate(starts):
         if verbose:
@@ -114,7 +118,7 @@ def update_pairs_counts_from_merge(
         # if pair is not at the start:
         # update count of pair that ends with first symbol of the pair
         if i > 0:
-            if not (k-1 >= 0 and starts[k-1] == i-2):
+            if not (k - 1 >= 0 and starts[k - 1] == i - 2):
                 # decrease count of pair the ends with first symbol of the pair
                 if verbose:
                     logger.info(f"update:{(word[i - 1], word[i])}")
@@ -133,7 +137,7 @@ def update_pairs_counts_from_merge(
                 logger.info(f"update:{(word[i + 1], word[i + 2])}")
             update_counts(pairs_counts, (word[i + 1], word[i + 2]), freq)
 
-            if not (k+1 < len(starts) and starts[k+1] == i+2 and i + 3 < len(word)):
+            if not (k + 1 < len(starts) and starts[k + 1] == i + 2 and i + 3 < len(word)):
                 # increase count of pair that starts with the whole pair
                 if verbose:
                     logger.info(f"add:{(word[i] + word[i + 1], word[i + 2])}")
@@ -141,7 +145,9 @@ def update_pairs_counts_from_merge(
             else:
                 # increase count of pair that starts with the whole pair
                 if verbose:
-                    logger.info(f"add:{(word[i] + word[i + 1], word[i + 2] + word[i + 3])}")
+                    logger.info(
+                        f"add:{(word[i] + word[i + 1], word[i + 2] + word[i + 3])}"
+                    )
                 pairs_counts[(word[i] + word[i + 1], word[i + 2] + word[i + 3])] += freq
 
 
@@ -180,7 +186,9 @@ class Encoder:
 
         self.cache = {}  # cache for the bpe function that stores already processed words
 
-    def clean_cache(self,):
+    def clean_cache(
+        self,
+    ):
         self.cache = {}
 
     def initialize_decoding(self, bpe_merges):
@@ -254,20 +262,21 @@ class Encoder:
         #  or when the number of symbols in the vocabulary is greater than vocab_size
         bpe_merges = []
         reverse_cache = {}
-        while (
-            len(bpe_merges) < self.max_merges
-            and len(pairs_counts) > 0
-        ):
+        while len(bpe_merges) < self.max_merges and len(pairs_counts) > 0:
             #  get the most frequent pair
             pair, pair_freq = pairs_counts.most_common(1)[0]
             if pair_freq > 1:
                 # add pair to the list of bpe_merges
                 bpe_merges.append(pair)
                 if self.verbose:
-                    logger.info(f"add {pair} to the list of bpe_merges,"
-                                f" total merges {len(bpe_merges)} and vocab size {len(self.encoder)}")
+                    logger.info(
+                        f"add {pair} to the list of bpe_merges,"
+                        f" total merges {len(bpe_merges)} and vocab size {len(self.encoder)}"
+                    )
                 elif len(bpe_merges) % 100 == 0:
-                    logger.info(f"total merges {len(bpe_merges)} and vocab size {len(self.encoder)}")
+                    logger.info(
+                        f"total merges {len(bpe_merges)} and vocab size {len(self.encoder)}"
+                    )
                 # add pair to the encoder vocabulary
                 if pair[0] + pair[1] not in self.encoder:
                     self.encoder[pair[0] + pair[1]] = len(self.encoder)
@@ -280,7 +289,9 @@ class Encoder:
                     # get new word and the start positions of the pair
                     new_word, starts = find_and_replace(word, pair, collect_starts=True)
                     # update counts of pairs with the new word
-                    update_pairs_counts_from_merge(word, freq, pairs_counts, starts, verbose=self.verbose)
+                    update_pairs_counts_from_merge(
+                        word, freq, pairs_counts, starts, verbose=self.verbose
+                    )
 
                     # if the word is not the same as the new word, add it to the list of new words
                     if new_word != word:
@@ -295,8 +306,10 @@ class Encoder:
             else:
                 break
 
-        logger.info(f"merging has finished,"
-                    f" total merges {len(bpe_merges)} and vocab size {len(self.encoder)}")
+        logger.info(
+            f"merging has finished,"
+            f" total merges {len(bpe_merges)} and vocab size {len(self.encoder)}"
+        )
         logger.info(f"build cache for fast bpe encoding")
         self.cache = {v: k for k, v in reverse_cache.items()}
         self.initialize_decoding(bpe_merges)
@@ -338,7 +351,7 @@ def save_encoder(encoder: Encoder, path):
     bpe_file = Path(path, "bpe.txt")
     with open(bpe_file, "w") as f:
         for k, v in sorted(encoder.bpe_ranks.items(), key=lambda x: x[1]):
-            f.write(k[0] + ' ' + k[1] + "\n")
+            f.write(k[0] + " " + k[1] + "\n")
 
 
 def load_encoder(path):
@@ -358,5 +371,7 @@ def load_encoder(path):
     with open(bpe_file, "r") as f:
         bpe_merges = f.read()
 
-    bpe_merges = [tuple(line.strip().split(' ')) for line in bpe_merges.split("\n") if line.strip()]
+    bpe_merges = [
+        tuple(line.strip().split(" ")) for line in bpe_merges.split("\n") if line.strip()
+    ]
     return Encoder(encoder=encoder, bpe_merges=bpe_merges)

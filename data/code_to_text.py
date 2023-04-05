@@ -4,8 +4,8 @@ from typing import List
 import torch
 from torch.utils.data import Dataset
 
-from model.bpe import Encoder, load_encoder, save_encoder
 from logger import logger
+from model.bpe import Encoder, load_encoder, save_encoder
 
 
 def load_data(column, path, split="runs"):
@@ -88,34 +88,30 @@ class CodeToText(Dataset):
             source = source[: self.max_length]
         else:
             source = torch.cat(
-                (source, torch.tensor([self.in_padding_token] * (self.max_length - len(source)), dtype=torch.long))
+                (
+                    source,
+                    torch.tensor(
+                        [self.in_padding_token] * (self.max_length - len(source)),
+                        dtype=torch.long,
+                    ),
+                )
             )
         padding_mask = torch.cat(
-                (torch.ones(len(source), dtype=torch.bool), torch.zeros(self.max_length - len(source), dtype=torch.bool))
+            (
+                torch.ones(len(source), dtype=torch.bool),
+                torch.zeros(self.max_length - len(source), dtype=torch.bool),
             )
+        )
         if len(target) > self.max_length:
             target = target[: self.max_length]
         else:
             target = torch.cat(
-                (target, torch.tensor([self.out_padding_token] * (self.max_length - len(target)), dtype=torch.long))
+                (
+                    target,
+                    torch.tensor(
+                        [self.out_padding_token] * (self.max_length - len(target)),
+                        dtype=torch.long,
+                    ),
+                )
             )
         return source, target, padding_mask, target_len
-
-
-if __name__ == "__main__":
-    train = CodeToText("train", "../dataset/code_to_text", "../dataset/bpe_encoder")
-    # test = CodeToText("test", "../dataset/code_to_text", "../dataset/bpe_encoder")
-    # validation = CodeToText("validation", "../dataset/code_to_text", "../dataset/bpe_encoder")
-    for k in range(10):
-        print(train[k])
-    # for k in range(10):
-    #     print(test[k])
-    # for k in range(10):
-    #     print(validation[k])
-
-    from torch.utils.data import DataLoader
-
-    loader = DataLoader(train, batch_size=4, shuffle=True)
-    for batch in loader:
-        print(batch)
-        break

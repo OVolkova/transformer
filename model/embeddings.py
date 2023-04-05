@@ -39,9 +39,7 @@ class Embeddings(nn.Module):
         self.apply(self.init_weights)
 
     def forward(self, x):
-        embedded = (
-            self.embedding(x) * self.scaling_dims
-        )  # (batch_size, seq_len, d_embed)
+        embedded = self.embedding(x) * self.scaling_dims  # (batch_size, seq_len, d_embed)
         pos = torch.arange(0, embedded.size(1)).unsqueeze(0)
         positions = self.positional_encoding(pos)
         return self.dropout(embedded + positions)

@@ -6,7 +6,12 @@ from model.bpe import Encoder
 # TODO: cover with tests properly
 class TestBPE(unittest.TestCase):
     encoder = Encoder()
-    data = [["hello", "world"], ["hello", "planet"], ["welcome"], ["well", "well", "well"]]
+    data = [
+        ["hello", "world"],
+        ["hello", "planet"],
+        ["welcome"],
+        ["well", "well", "well"],
+    ]
     encoder.fit(data)
 
     def test_encoder_init(self):
@@ -17,7 +22,7 @@ class TestBPE(unittest.TestCase):
 
     def test_bpe__repeating_in_encoding(self):
         encoder = Encoder()
-        s = ["helllllo", "wowowowowo", 'lamlamlamlam', 'clapclapclap']
+        s = ["helllllo", "wowowowowo", "lamlamlamlam", "clapclapclap"]
         encoder.fit(self.data + [s])
         encoded = encoder.encode(s)
         decoded = encoder.decode(encoded)

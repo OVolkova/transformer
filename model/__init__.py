@@ -1,2 +1,2 @@
-from .models import VanillaTransformer
 from .config import VanillaTransformerConfig
+from .models import VanillaTransformer

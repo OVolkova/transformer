@@ -130,3 +130,7 @@ dmypy.json
 
 # Data and encoders file
 dataset/*
+lightning_logs
+
+# Other
+.idea/
