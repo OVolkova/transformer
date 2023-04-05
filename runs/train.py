@@ -64,8 +64,11 @@ class TrainingModel(pl.LightningModule):
             )
         else:
             result = result[:, : targets.size(1)]
-        value = self.metric(result.contiguous().view(-1), targets.contiguous().view(-1))
-        self.log("test accuracy", value)
+        self.metric.update(result.contiguous().view(-1), targets.contiguous().view(-1))
+
+    def validation_epoch_end(self, outputs):
+        self.log("valid_accuracy", self.metric.compute())
+        self.metric.reset()
 
     def configure_optimizers(self):
         return torch.optim.Adam(

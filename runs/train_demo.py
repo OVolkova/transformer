@@ -1,9 +1,10 @@
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.loggers import WandbLogger
 
 from model import VanillaTransformerConfig
 from runs.train import TrainingModel
+
+# from pytorch_lightning.loggers import WandbLogger
 
 
 class TrainingConfig:
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)
 
     test_dataset = NumbersRule("test")
-    test_loader = DataLoader(test_dataset, batch_size=len(test_dataset), shuffle=False)
+    test_loader = DataLoader(test_dataset, 512, shuffle=False)
 
     config_ = VanillaTransformerConfig(
         input_vocab_size=train_dataset.get_input_vocab_size(),

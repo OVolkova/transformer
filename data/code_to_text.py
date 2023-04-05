@@ -1,6 +1,8 @@
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
+import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
@@ -8,11 +10,9 @@ from logger import logger
 from model.bpe import Encoder, load_encoder, save_encoder
 
 
-def load_data(column, path, split="runs"):
-    file_path = Path(Path(path, split), column + ".txt")
-    with open(file_path, "r", encoding="utf-8") as f:
-        data = [line.strip().split(" ") for line in f.readlines()][:-1]
-    return data
+def load_data(split="train") -> Tuple[np.array, List[List[str]]]:
+    dataset = pd.read_parquet("../dataset/code_to_text/" + split + ".parquet")
+    return dataset["code_tokens"].values, dataset["docstring_tokens"].values
 
 
 class CodeToText(Dataset):
@@ -22,27 +22,21 @@ class CodeToText(Dataset):
 
     """
 
-    def __init__(self, split: str, dataset_path: str, bpe_path: str, max_length=512):
+    def __init__(self, split: str, bpe_path: str, max_length=32):
         assert split in {"train", "test", "validation"}
         self.max_length = max_length
         self.split = split
-        self.input, self.in_encoder = self.read_and_encode(
-            "code_tokens", dataset_path, bpe_path, is_input=True
+        source, target = load_data(split=split)
+        self.input, self.in_padding_token, self.in_vocab_size = self.read_and_encode(
+            "code_tokens", bpe_path, source, is_input=True
         )
-        self.in_padding_token = self.in_encoder.encode([self.in_encoder.PAD])[0]
-        self.in_encoder.clean_cache()
-        self.output, self.out_encoder = self.read_and_encode(
-            "docstring_tokens", dataset_path, bpe_path, is_input=False
+        self.output, self.out_padding_token, self.out_vocab_size = self.read_and_encode(
+            "docstring_tokens", bpe_path, target, is_input=False
         )
-        self.out_padding_token = self.out_encoder.encode([self.out_encoder.PAD])[0]
-        self.out_encoder.clean_cache()
 
     def read_and_encode(
-        self, column: str, dataset_path: str, bpe_path: str, is_input: bool = False
+        self, column: str, bpe_path: str, data: List[List[str]], is_input: bool = False
     ):
-        logger.info(f"Loading data for {column}")
-        data = load_data(column, dataset_path, split=self.split)
-
         encoder = self.read_encoder(bpe_path, column, data)
 
         logger.info(f"Encoding data for {column}")
@@ -50,7 +44,8 @@ class CodeToText(Dataset):
             encoder.encode(line if is_input else [encoder.BOS] + line + [encoder.EOS])
             for line in data
         ]
-        return data, encoder
+        padding_token = encoder.encode([encoder.PAD])[0]
+        return data, padding_token, len(encoder.encoder)
 
     def read_encoder(self, bpe_path: str, column: str, data: List[List[str]]):
         try:
@@ -72,10 +67,10 @@ class CodeToText(Dataset):
         return len(self.input)
 
     def get_input_vocab_size(self):
-        return len(self.in_encoder.encoder)
+        return self.in_vocab_size
 
     def get_output_vocab_size(self):
-        return len(self.out_encoder.encoder)
+        return self.out_vocab_size
 
     def get_block_size(self):
         return self.max_length
@@ -83,7 +78,7 @@ class CodeToText(Dataset):
     def __getitem__(self, idx):
         source = torch.tensor(self.input[idx], dtype=torch.long)
         target = torch.tensor(self.output[idx], dtype=torch.long)
-        target_len = target.size(0)
+        target_len = min(self.max_length, target.size(0))
         if len(source) > self.max_length:
             source = source[: self.max_length]
         else:
