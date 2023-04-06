@@ -2,7 +2,11 @@ import unittest
 
 import torch
 
-from model.graph import GraphTransformer, GraphTransformerConfig, MultiHeadGraphAttention
+from tmodels.graph import (
+    GraphTransformer,
+    GraphTransformerConfig,
+    MultiHeadGraphAttention,
+)
 
 
 class TestMultiHeadGraphAttention(unittest.TestCase):

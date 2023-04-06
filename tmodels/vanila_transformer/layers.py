@@ -5,8 +5,8 @@ from typing import List, Optional
 import torch
 import torch.nn as nn
 
-from model.attention import MultiHeadAttention
-from model.config import VanillaTransformerConfig
+from tmodels.vanila_transformer.attention import MultiHeadAttention
+from tmodels.vanila_transformer.config import VanillaTransformerConfig
 
 
 class LayerNorm(nn.Module):

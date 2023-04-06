@@ -1,8 +1,8 @@
 import pytorch_lightning as pl
 import torch
 
-from model import VanillaTransformerConfig
 from runs.train import TrainingModel
+from tmodels import VanillaTransformerConfig
 
 # from pytorch_lightning.loggers import WandbLogger
 
@@ -18,7 +18,7 @@ class TrainingConfig:
 if __name__ == "__main__":
     from torch.utils.data import DataLoader
 
-    from data.demo import NumbersRule
+    from runs.data.demo import NumbersRule
 
     train_dataset = NumbersRule("train", length=10000 * 4)
     loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)

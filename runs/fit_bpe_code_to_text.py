@@ -1,7 +1,7 @@
-from data.code_to_text import CodeToText
+from runs.data.code_to_text import CodeToText
 
 if __name__ == "__main__":
-    train = CodeToText("train", "../dataset/bpe_encoder")
+    train = CodeToText("train", "dataset/bpe_encoder")
     # test = CodeToText("test",  "../dataset/bpe_encoder")
     # validation = CodeToText("validation", "../dataset/bpe_encoder")
     print(len(train))
