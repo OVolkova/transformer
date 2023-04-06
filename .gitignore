@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # Data and encoders file
-dataset/*
+runs/dataset
 lightning_logs
 
 # Other

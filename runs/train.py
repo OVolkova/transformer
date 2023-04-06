@@ -2,7 +2,7 @@ import pytorch_lightning as pl
 import torch
 from torchmetrics import Accuracy
 
-from model import VanillaTransformer, VanillaTransformerConfig
+from tmodels import VanillaTransformer, VanillaTransformerConfig
 
 
 class TrainingModel(pl.LightningModule):

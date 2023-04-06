@@ -1,8 +1,8 @@
 import pytorch_lightning as pl
 import torch
 
-from model import VanillaTransformerConfig
 from runs.train import TrainingModel
+from tmodels import VanillaTransformerConfig
 
 
 class TrainingConfig:
@@ -16,13 +16,13 @@ class TrainingConfig:
 if __name__ == "__main__":
     from torch.utils.data import DataLoader
 
-    from data.code_to_text import CodeToText
+    from runs.data import CodeToText
 
-    train_dataset = CodeToText("train", "../dataset/bpe_encoder")
-    loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=1)
+    train_dataset = CodeToText("train", "dataset/bpe_encoder", max_length=128)
+    loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=1)
 
-    validation_dataset = CodeToText("validation", "../dataset/bpe_encoder")
-    validation_loader = DataLoader(validation_dataset, batch_size=4, shuffle=False)
+    validation_dataset = CodeToText("validation", "dataset/bpe_encoder", max_length=128)
+    validation_loader = DataLoader(validation_dataset, batch_size=64, shuffle=False)
 
     config_ = VanillaTransformerConfig(
         input_vocab_size=train_dataset.get_input_vocab_size(),
@@ -34,7 +34,10 @@ if __name__ == "__main__":
         d_ff=1024,
     )
 
-    model_ = TrainingModel(config=config_, training_config=TrainingConfig)
+    # model_ = TrainingModel(config=config_, training_config=TrainingConfig)
+    model_ = TrainingModel._load_from_checkpoint(
+        "lightning_logs/version_24/checkpoints/epoch=0-step=7870.ckpt"
+    )
     trainer = pl.Trainer(
         max_epochs=5,
         gpus=int(torch.cuda.is_available()),

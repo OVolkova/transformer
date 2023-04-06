@@ -1,6 +1,6 @@
 import unittest
 
-from model.bpe import Encoder
+from tmodels.bpe import Encoder
 
 
 # TODO: cover with tests properly

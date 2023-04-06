@@ -1,6 +1,7 @@
 import pandas as pd
 from datasets import load_dataset
 
+# TODO: proper file paths
 if __name__ == "__main__":
     dataset = load_dataset("code_x_glue_ct_code_to_text", "python")
     for split in ["train", "test", "validation"]:

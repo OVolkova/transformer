@@ -12,7 +12,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-from logger import logger
+from tmodels.logger import logger
 
 Word = Tuple[str, ...]
 Pair = Tuple[str, str]

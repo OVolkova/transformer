@@ -6,10 +6,12 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from logger import logger
-from model.bpe import Encoder, load_encoder, save_encoder
+from tmodels.bpe import Encoder
+from tmodels.bpe.bpe import load_encoder, save_encoder
+from tmodels.logger import logger
 
 
+# TODO proper file paths
 def load_data(split="train") -> Tuple[np.array, List[List[str]]]:
     dataset = pd.read_parquet("../dataset/code_to_text/" + split + ".parquet")
     return dataset["code_tokens"].values, dataset["docstring_tokens"].values
