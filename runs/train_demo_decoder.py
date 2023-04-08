@@ -1,8 +1,8 @@
 import pytorch_lightning as pl
 import torch
 
-from runs.train_vanilla import TrainingModel
-from tmodels import VanillaTransformerConfig
+from runs.train_decoder import TrainingDecoder
+from tmodels import DecoderOnlyConfig
 
 # from pytorch_lightning.loggers import WandbLogger
 
@@ -18,21 +18,20 @@ class TrainingConfig:
 if __name__ == "__main__":
     from torch.utils.data import DataLoader
 
-    from runs.data.demo import NumbersRule
+    from runs.data.demo_decoder_only import NumbersRule
 
     train_dataset = NumbersRule("train", length=10000 * 4)
-    loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)
+    loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=4)
 
-    test_dataset = NumbersRule("test")
-    test_loader = DataLoader(test_dataset, 512, shuffle=False)
+    test_dataset = NumbersRule("test", length=50)
+    test_loader = DataLoader(test_dataset, 1, shuffle=False)
 
-    config_ = VanillaTransformerConfig(
-        input_vocab_size=train_dataset.get_input_vocab_size(),
-        output_vocab_size=train_dataset.get_output_vocab_size(),
-        d_seq=train_dataset.length + 2,
+    config_ = DecoderOnlyConfig(
+        vocab_size=train_dataset.get_vocab_size(),
+        d_seq=train_dataset.max_length,
     )
 
-    model_ = TrainingModel(config=config_, training_config=TrainingConfig)
+    model_ = TrainingDecoder(config=config_, training_config=TrainingConfig)
     # model_ = TrainingModel._load_from_checkpoint(
     #     "lightning_logs/version_90/checkpoints/epoch=499-step=312500.ckpt"
     # )

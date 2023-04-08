@@ -6,9 +6,9 @@ Transformer model.
 import torch
 import torch.nn as nn
 
-from tmodels.vanila_transformer.config import VanillaTransformerConfig
-from tmodels.vanila_transformer.embeddings import Embeddings
-from tmodels.vanila_transformer.layers import (
+from tmodels.vanilla_transformer.config import VanillaTransformerConfig
+from tmodels.vanilla_transformer.embeddings import Embeddings
+from tmodels.vanilla_transformer.layers import (
     AttentionOutput,
     DecoderLayer,
     EncoderLayer,

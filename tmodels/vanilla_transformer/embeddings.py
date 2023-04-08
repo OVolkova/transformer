@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-from tmodels.vanila_transformer.config import VanillaTransformerConfig
+from tmodels.vanilla_transformer.config import VanillaTransformerConfig
 
 
 class Embeddings(nn.Module):
