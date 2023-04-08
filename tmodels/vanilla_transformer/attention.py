@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from tmodels.vanila_transformer.config import VanillaTransformerConfig
+from tmodels.vanilla_transformer.config import VanillaTransformerConfig
 
 
 class MultiHeadAttention(nn.Module):

@@ -1,7 +1,7 @@
 import pytorch_lightning as pl
 import torch
 
-from runs.train import TrainingModel
+from runs.train_vanilla import TrainingModel
 from tmodels import VanillaTransformerConfig
 
 
